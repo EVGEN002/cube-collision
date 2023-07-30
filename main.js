@@ -17,20 +17,23 @@ class Rect {
   changeDirection(direction) {
     this.direction = direction;
   }
-  moveRight(speed) {
-    if (!this.isMove) return;
-    this.x += speed;
-  }
-  moveLeft(speed) {
-    if (!this.isMove) return;
-    this.x -= speed;
+  move (direction, speed) {
+    if (this.isMove) {
+      if (direction === "right") {
+        this.x += speed;
+      } else if (direction === "left") {
+        this.x -= speed;
+      }
+    }
   }
 }
 
-const smallRect = new Rect(200, height - 50, 50, 50, "right", false, 2);
-const bigRect = new Rect(500, height - 100, 100, 100, "right", false, 2);
+const smallRect = new Rect(200, height - 50, 50, 50, "right", false, 0);
+const bigRect = new Rect(500, height - 100, 100, 100, "right", false, 0);
 
-function render() {
+let x = 0;
+
+function render(progress) {
   ctx.clearRect(0, 0, width, height);
 
   ctx.fillStyle = "#000000";
@@ -38,15 +41,130 @@ function render() {
 
   ctx.strokeStyle = "#FFFFFF";
   ctx.strokeRect(smallRect.x, smallRect.y, smallRect.width, smallRect.height);
-
+  
+  ctx.fillStyle = "#FFFFFF";
+  ctx.fillText(`smallRect position: ${smallRect.x}`, 30, 30);
+  ctx.fillText(`smallRect isMove: ${smallRect.isMove}`, 30, 50);
+  ctx.fillText(`smallRect speed: ${smallRect.speed}`, 30, 70);
   // ctx.fillStyle = "#FFFFFF"
   // ctx.fillRect(bigRect.x, bigRect.y, bigRect.width, bigRect.height);
 }
 
+function checkCollision(x) {
+  if (x <= 0) {
+    smallRect.isMove = false;
+  } else if (x + smallRect.width >= 800) {
+    smallRect.isMove = false;
+  }
+}
+
+let tempLeft = null;
+let tempRight = null;
+let mouseDownPos = null;
+let beginMoveTime = null;
+let startMoving = null;
+let endMoving = null;
+let startMovingPos = null;
+
 function loop(timestamp) {
   let progress = timestamp - lastRender;
 
-  render(progress);
+  checkCollision(smallRect.x);
+
+  if (smallRect.isMove && smallRect.direction === "right") {
+    smallRect.move("right", smallRect.speed);
+  } else if (smallRect.isMove && smallRect.direction === "left") {
+    smallRect.move("left", smallRect.speed);
+  }
+
+  function handleMouseDown(event) {
+    if (
+      event.offsetX >= smallRect.x &&
+      event.offsetX <= smallRect.x + smallRect.width &&
+      event.offsetY >= smallRect.y
+    ) {
+      smallRect.isMove = false;
+      isDragging = true;
+      mouseDownPos = event.offsetX;
+      tempLeft = event.offsetX - smallRect.x;
+      tempRight = smallRect.width - (event.offsetX - smallRect.x);
+
+      // фиксируем время начала движения куба
+      startMoving = Date.now();
+      startMovingPos = event.offsetX;
+    }
+  }
+
+  function handleMouseMove(event) {
+    if (isDragging) {
+      {
+        let stop = false;
+        if (event.offsetX - tempLeft <= 0 || event.offsetX + tempRight >= 800) {
+          stop = true;
+        }
+        if (stop === false) {
+          smallRect.x = event.offsetX - tempLeft;
+
+          if (event.offsetX > mouseDownPos) {
+            smallRect.direction = "right";
+          } else if (event.offsetX < mouseDownPos) {
+            smallRect.direction = "left";
+          }
+        }
+      }
+    }
+  }
+  
+  function handleMouseOut(event) {
+    isDragging = false;
+  }
+  
+  function handleMouseUp(event) {
+    isDragging = false;
+
+    // фиксируем время завершения движения куба
+    endMoving = Date.now();
+    endMovingPos = event.offsetX;
+
+    let t = (endMoving - startMoving); // Время движения в миллисекундах
+    let S = (endMovingPos - startMovingPos); // Пройденное кубом расстояние (насколько передвинул куб пользователь)
+    let U = S / t; // количество пройденных пикселей за миллисекунду
+    switch (true) {
+      case (U < 0.5):
+        smallRect.speed = 2;
+        break;
+      case (U > 0.5 && U < 0.7):
+        smallRect.speed = 4;
+        break;
+      case (U > 0.7 && U < 1):
+        smallRect.speed = 6;
+        break;
+      case (U > 1):
+        smallRect.speed = 8;
+        break;
+      default:
+        smallRect.speed = 2;
+    }
+    smallRect.isMove = true;
+  }
+  
+  canvas.addEventListener("mousedown", function(event) {
+    handleMouseDown(event);
+  });
+  
+  canvas.addEventListener("mousemove", function(event) {
+    handleMouseMove(event);
+  });
+  
+  canvas.addEventListener("mouseup", function (event) {
+    handleMouseUp(event);
+  });
+  
+  canvas.addEventListener("mouseout", function (event) {
+    handleMouseOut(event);
+  });
+
+  render(timestamp);
 
   lastRender = timestamp;
   window.requestAnimationFrame(loop);
@@ -56,53 +174,6 @@ let lastRender = 0;
 window.requestAnimationFrame(loop);
 
 let isDragging = false;
-
-function handleMouseDown(event) {
-  if (
-    event.offsetX >= smallRect.x &&
-    event.offsetX <= smallRect.x + smallRect.width &&
-    event.offsetY >= smallRect.y
-  ) {
-    isDragging = true;
-  }
-}
-
-function handleMouseMove(event) {
-  if (isDragging) {
-    if (
-      event.offsetX >= smallRect.x &&
-      event.offsetX <= smallRect.x + smallRect.width &&
-      event.offsetY >= smallRect.y
-    ) {
-      console.log(event.offsetX - smallRect.width)
-      smallRect.x = event.offsetX - smallRect.width;
-    }
-  }
-}
-
-function handleMouseOut(event) {
-  isDragging = false;
-}
-
-function handleMouseUp(event) {
-  isDragging = false;
-}
-
-canvas.addEventListener("mousedown", function(event) {
-  handleMouseDown(event);
-});
-
-canvas.addEventListener("mousemove", function(event) {
-  handleMouseMove(event);
-});
-
-canvas.addEventListener("mouseup", function (event) {
-  handleMouseUp(event);
-});
-
-canvas.addEventListener("mouseout", function (event) {
-  handleMouseOut(event);
-});
 
 // const rectHeight = 50;
 // const rectWidth = 50;
